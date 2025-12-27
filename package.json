@@ -1,0 +1,33 @@
+{
+  "name": "@asoc/mcp",
+  "version": "0.1.0",
+  "description": "Official A-SOC MCP Server for agent discovery and certification",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "asoc-mcp-server": "./dist/server.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/server.ts --format esm --clean",
+    "dev": "node --trace-uncaught --loader ts-node/esm src/server.ts",
+    "test-dev": "node --loader ts-node/esm src/test.ts",
+    "start": "node dist/server.js",
+    "test": "node --test",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@asoc/sdk": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "express": "^4.21.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@asoc/database": "*",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.19.12",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.0"
+  }
+}
