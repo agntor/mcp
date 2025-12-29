@@ -24,8 +24,8 @@ ASOC_SECRET_KEY=your-secret npm start
 ### Integrate with Your Application
 
 ```typescript
-import { createAsocMcpServer } from '@asoc/mcp-server';
-import { TicketIssuer } from '@asoc/ticket-issuer';
+import { createAsocMcpServer } from '@asoc/mcp';
+import { TicketIssuer } from '@asoc/sdk';
 
 const issuer = new TicketIssuer({
   signingKey: process.env.ASOC_SECRET_KEY!,

@@ -5,6 +5,27 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "keywords": [
+    "asoc",
+    "mcp",
+    "model-context-protocol",
+    "agent",
+    "trust",
+    "audit",
+    "certification",
+    "ai-agents"
+  ],
+  "author": "A-SOC Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/asoc-trust/asoc-core.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/asoc-trust/asoc-core/issues"
+  },
+  "homepage": "https://github.com/asoc-trust/asoc-core/tree/main/packages/mcp#readme",
   "bin": {
     "asoc-mcp-server": "./dist/server.js"
   },

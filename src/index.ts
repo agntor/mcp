@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { TicketIssuer } from '@asoc/ticket-issuer';
+import { TicketIssuer } from '@asoc/sdk';
 import { db, agents, certifications, healthMetrics } from '@asoc/database';
 import { eq, desc, and, gte } from 'drizzle-orm';
 import { AgentCardSchema, AgentPulseSchema } from './schemas.js';
