@@ -7,11 +7,13 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { TicketIssuer } from '@agntor/sdk';
 import { z } from 'zod';
+import { db, apiKeys } from '@agntor/database';
+import { eq } from 'drizzle-orm';
 import { createAgntorMcpServer } from './index.js';
 
 const PORT = process.env.PORT || 3100;
 const AGNTOR_SECRET = process.env.AGNTOR_SECRET_KEY || 'dev-secret-key-change-in-production';
-const AGNTOR_API_KEY = process.env.AGNTOR_API_KEY;
+const ADMIN_API_KEY = process.env.AGNTOR_API_KEY;
 
 // Initialize ticket issuer
 const issuer = new TicketIssuer({
@@ -28,22 +30,43 @@ const mcpServer = createAgntorMcpServer(issuer);
 const app = express();
 app.use(express.json());
 
-function verifyApiKey(req: express.Request, res: express.Response, next: express.NextFunction) {
-  if (!AGNTOR_API_KEY) {
-    return next();
-  }
-
+async function verifyApiKey(req: express.Request, res: express.Response, next: express.NextFunction) {
   const header = req.header('x-agntor-api-key') || req.header('authorization');
   const token = header?.startsWith('Bearer ') ? header.slice(7) : header;
 
-  if (token !== AGNTOR_API_KEY) {
-    return res.status(401).json({
+  if (!token) {
+     if (!ADMIN_API_KEY) return next(); // Development mode if no keys set
+
+     return res.status(401).json({
       error: 'Unauthorized',
-      message: 'Invalid or missing AGNTOR_API_KEY',
+      message: 'Missing API Key',
     });
   }
 
-  return next();
+  // 1. Check Admin Key (Bootstrap)
+  if (ADMIN_API_KEY && token === ADMIN_API_KEY) {
+    return next();
+  }
+
+  // 2. Check Database Keys
+  try {
+    const keyRecord = await db.query.apiKeys.findFirst({
+      where: eq(apiKeys.key, token),
+    });
+
+    if (keyRecord && keyRecord.isActive) {
+      // Update last used asynchronously
+      await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, keyRecord.id));
+      return next();
+    }
+  } catch (error) {
+    console.error('Database key verification failed:', error);
+  }
+
+  return res.status(401).json({
+    error: 'Unauthorized',
+    message: 'Invalid API Key',
+  });
 }
 
 // Health check endpoint
