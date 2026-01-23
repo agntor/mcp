@@ -82,6 +82,20 @@ npm run dev
 AGNTOR_SECRET_KEY=your-secret npm start
 ```
 
+### Hosted MCP
+
+Endpoint:
+
+```
+https://mcp.agntor.com/mcp
+```
+
+If enabled, include:
+
+```
+X-AGNTOR-API-KEY: <your_key>
+```
+
 ### Integrate with Your Application
 
 ```typescript
@@ -348,6 +362,7 @@ curl -X POST http://localhost:3100/mcp \
 |----------|-------------|---------|
 | `PORT` | HTTP server port | 3100 |
 | `AGNTOR_SECRET_KEY` | JWT signing key | _(dev key)_ |
+| `AGNTOR_API_KEY` | Optional API key for hosted MCP | _(optional)_ |
 | `NODE_ENV` | Environment | development |
 
 ## Architecture

@@ -11,6 +11,7 @@ import { createAgntorMcpServer } from './index.js';
 
 const PORT = process.env.PORT || 3100;
 const AGNTOR_SECRET = process.env.AGNTOR_SECRET_KEY || 'dev-secret-key-change-in-production';
+const AGNTOR_API_KEY = process.env.AGNTOR_API_KEY;
 
 // Initialize ticket issuer
 const issuer = new TicketIssuer({
@@ -27,6 +28,24 @@ const mcpServer = createAgntorMcpServer(issuer);
 const app = express();
 app.use(express.json());
 
+function verifyApiKey(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!AGNTOR_API_KEY) {
+    return next();
+  }
+
+  const header = req.header('x-agntor-api-key') || req.header('authorization');
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : header;
+
+  if (token !== AGNTOR_API_KEY) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid or missing AGNTOR_API_KEY',
+    });
+  }
+
+  return next();
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -38,7 +57,7 @@ app.get('/health', (req, res) => {
 });
 
 // MCP endpoint
-app.post('/mcp', async (req, res) => {
+app.post('/mcp', verifyApiKey, async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
