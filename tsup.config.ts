@@ -5,5 +5,5 @@ export default defineConfig({
   format: ["esm"],
   dts: false,
   clean: true,
-  noExternal: ["@asoc/database"], // Bundle the database package
+  noExternal: ["@agntor/database"], // Bundle the database package
 });

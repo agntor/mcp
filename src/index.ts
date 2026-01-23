@@ -1,9 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { TicketIssuer } from '@asoc/sdk';
-import { db, agents, certifications, healthMetrics } from '@asoc/database';
+import { TicketIssuer, guard, redact, guardTool } from '@agntor/sdk';
+import { db, agents, certifications, healthMetrics } from '@agntor/database';
 import { eq, desc, and, gte } from 'drizzle-orm';
-import { AgentCardSchema, AgentPulseSchema } from './schemas.js';
+import { AgentCardSchema, AgentPulseSchema, AgentRegistrationSchema } from './schemas.js';
 import {
   AgentRecord,
   TrustScore,
@@ -70,11 +70,11 @@ async function getAgentRecord(agentId: string): Promise<AgentRecord | null> {
 }
 
 /**
- * Creates and configures the A-SOC MCP server
+ * Creates and configures the Agntor MCP server
  */
-export function createAsocMcpServer(issuer: TicketIssuer) {
+export function createAgntorMcpServer(issuer: TicketIssuer) {
   const server = new McpServer({
-    name: 'asoc-audit-server',
+    name: 'agntor-audit-server',
     version: '0.1.0',
   });
 
@@ -116,14 +116,71 @@ export function createAsocMcpServer(issuer: TicketIssuer) {
           max_transaction_value: agent.constraints.max_op_value,
           allowed_domains: [], // Placeholder
           requires_human_approval: false,
+          requires_x402_payment: Boolean((agent.constraints as any)?.requires_x402_payment ?? true),
         },
-        issuer: 'asoc-authority.com',
+        issuer: 'agntor.com',
         signature: 'simulated_signature_0x123456789', // Placeholder
       };
 
       return {
         content: [{ type: 'text', text: JSON.stringify(card) }],
         structuredContent: card,
+      };
+    }
+  );
+
+  /**
+   * Tool: get_agent_registration
+   * 
+   * Returns an EIP-8004 registration file for agent discovery.
+   */
+  server.registerTool(
+    'get_agent_registration',
+    {
+      title: 'Get Agent Registration',
+      description: 'Retrieve the EIP-8004 agent registration file',
+      inputSchema: {
+        agentId: z.string().describe('The agent ID to retrieve'),
+      },
+      outputSchema: AgentRegistrationSchema,
+    },
+    async ({ agentId }) => {
+      const agent = await getAgentRecord(agentId);
+      if (!agent) {
+        throw new Error(`Agent ${agentId} not found`);
+      }
+
+      const registry = (agent.metadata as any)?.agentRegistry ?? 'eip155:1:0x0000000000000000000000000000000000000000';
+      const registrationId = Number.parseInt(agent.agentId, 10);
+      const endpoints = (agent.metadata as any)?.endpoints ?? [
+        {
+          name: 'MCP',
+          endpoint: 'https://agntor.com/mcp',
+          version: '2025-06-18',
+          capabilities: agent.metadata.capabilities ?? [],
+        },
+      ];
+
+      const registration = {
+        type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
+        name: agent.metadata.name,
+        description: agent.metadata.description || 'Agntor-registered agent',
+        image: (agent.metadata as any)?.image,
+        endpoints,
+        x402Support: true,
+        active: !agent.killSwitchActive,
+        registrations: [
+          {
+            agentId: Number.isNaN(registrationId) ? 0 : registrationId,
+            agentRegistry: registry,
+          },
+        ],
+        supportedTrust: ['reputation', 'validation', 'crypto-economic'],
+      };
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(registration) }],
+        structuredContent: registration,
       };
     }
   );
@@ -175,7 +232,7 @@ export function createAsocMcpServer(issuer: TicketIssuer) {
     'is_agent_certified',
     {
       title: 'Check Agent Certification',
-      description: 'Verify if an agent has valid A-SOC certification',
+      description: 'Verify if an agent has valid Agntor certification',
       inputSchema: {
         agentId: z.string().describe('The agent ID to check'),
       },
@@ -213,6 +270,103 @@ export function createAsocMcpServer(issuer: TicketIssuer) {
       return {
         content: [{ type: 'text', text: JSON.stringify(output) }],
         structuredContent: output,
+      };
+    }
+  );
+
+  /**
+   * Tool: guard_input
+   * 
+   * Input validation to detect prompt injection and unsafe instructions.
+   */
+  server.registerTool(
+    'guard_input',
+    {
+      title: 'Guard Input',
+      description: 'Scan incoming prompts for unsafe or malicious instructions',
+      inputSchema: {
+        input: z.string(),
+        context: z.any().optional(),
+        policy: z.any().optional(),
+      },
+      outputSchema: {
+        classification: z.enum(['pass', 'block']),
+        violation_types: z.array(z.string()),
+        cwe_codes: z.array(z.string()),
+        usage: z.object({
+          promptTokens: z.number(),
+          completionTokens: z.number(),
+          totalTokens: z.number(),
+        }).optional(),
+      },
+    },
+    async ({ input, policy }) => {
+      const result = await guard(input, policy ?? {});
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
+      };
+    }
+  );
+
+  /**
+   * Tool: redact_output
+   * 
+   * Redact sensitive outputs before returning to users.
+   */
+  server.registerTool(
+    'redact_output',
+    {
+      title: 'Redact Output',
+      description: 'Scan and redact sensitive content from outputs',
+      inputSchema: {
+        input: z.string(),
+        policy: z.any().optional(),
+      },
+      outputSchema: {
+        redacted: z.string(),
+        findings: z.array(z.object({
+          type: z.string(),
+          span: z.tuple([z.number(), z.number()]),
+          value: z.string().optional(),
+        })),
+      },
+    },
+    async ({ input, policy }) => {
+      const result = redact(input, policy ?? {});
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
+      };
+    }
+  );
+
+  /**
+   * Tool: guard_tool
+   * 
+   * Control tool execution with allow/deny policies.
+   */
+  server.registerTool(
+    'guard_tool',
+    {
+      title: 'Guard Tool',
+      description: 'Authorize or block tool execution',
+      inputSchema: {
+        tool: z.string(),
+        args: z.any(),
+        policy: z.any().optional(),
+      },
+      outputSchema: {
+        allowed: z.boolean(),
+        violations: z.array(z.string()).optional(),
+        reason: z.string().optional(),
+      },
+    },
+    async ({ tool, policy }) => {
+      const result = guardTool(tool, policy ?? {});
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        structuredContent: result,
       };
     }
   );

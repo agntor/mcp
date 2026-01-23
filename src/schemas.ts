@@ -12,7 +12,7 @@ export const AgentCardSchema = z.object({
   version: z.string().describe("Semantic version of the agent code"),
   
   // Certification
-  audit_level: z.enum(['Bronze', 'Silver', 'Gold', 'Platinum']).describe("A-SOC Certification Level"),
+  audit_level: z.enum(['Bronze', 'Silver', 'Gold', 'Platinum']).describe("Agntor Certification Level"),
   trust_score: z.number().min(0).max(100).describe("Real-time trust score (0-100)"),
   certified_at: z.string().datetime().describe("ISO timestamp of last full audit"),
   expires_at: z.string().datetime().describe("ISO timestamp when certification expires"),
@@ -23,10 +23,11 @@ export const AgentCardSchema = z.object({
     max_transaction_value: z.number().describe("Hard cap on single transaction value (USD)"),
     allowed_domains: z.array(z.string()).describe("Whitelisted external domains"),
     requires_human_approval: z.boolean().describe("If true, high-risk actions need human sign-off"),
+    requires_x402_payment: z.boolean().describe("If true, x402 proof-of-payment required"),
   }),
   
   // Verification
-  issuer: z.string().describe("Authority that issued this card (e.g., 'asoc-authority.com')"),
+  issuer: z.string().describe("Authority that issued this card (e.g., 'agntor.com')"),
   signature: z.string().describe("Cryptographic signature of this card"),
 });
 
@@ -49,3 +50,34 @@ export const AgentPulseSchema = z.object({
 });
 
 export type AgentPulse = z.infer<typeof AgentPulseSchema>;
+
+/**
+ * EIP-8004 Agent Registration File (minimal)
+ */
+export const AgentRegistrationSchema = z.object({
+  type: z.string().describe('EIP-8004 registration type URI'),
+  name: z.string(),
+  description: z.string(),
+  image: z.string().optional(),
+  endpoints: z.array(
+    z.object({
+      name: z.string(),
+      endpoint: z.string(),
+      version: z.string().optional(),
+      capabilities: z.array(z.string()).optional(),
+      skills: z.array(z.string()).optional(),
+      domains: z.array(z.string()).optional(),
+    })
+  ),
+  x402Support: z.boolean(),
+  active: z.boolean(),
+  registrations: z.array(
+    z.object({
+      agentId: z.number(),
+      agentRegistry: z.string(),
+    })
+  ),
+  supportedTrust: z.array(z.string()).optional(),
+});
+
+export type AgentRegistration = z.infer<typeof AgentRegistrationSchema>;

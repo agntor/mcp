@@ -49,6 +49,7 @@ export interface AgentRecord {
     max_op_value: number;
     allowed_mcp_servers: string[];
     max_ops_per_hour?: number;
+    requires_x402_payment?: boolean;
   };
 }
 

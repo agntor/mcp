@@ -5,23 +5,23 @@ import express from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { TicketIssuer } from '@asoc/sdk';
+import { TicketIssuer } from '@agntor/sdk';
 import { z } from 'zod';
-import { createAsocMcpServer } from './index.js';
+import { createAgntorMcpServer } from './index.js';
 
 const PORT = process.env.PORT || 3100;
-const ASOC_SECRET = process.env.ASOC_SECRET_KEY || 'dev-secret-key-change-in-production';
+const AGNTOR_SECRET = process.env.AGNTOR_SECRET_KEY || 'dev-secret-key-change-in-production';
 
 // Initialize ticket issuer
 const issuer = new TicketIssuer({
-  signingKey: ASOC_SECRET,
-  issuer: 'asoc-authority.com',
+  signingKey: AGNTOR_SECRET,
+  issuer: 'agntor.com',
   algorithm: 'HS256',
   defaultValidity: 300, // 5 minutes
 });
 
 // Create MCP server
-const mcpServer = createAsocMcpServer(issuer);
+const mcpServer = createAgntorMcpServer(issuer);
 
 // Setup Express with MCP transport
 const app = express();
@@ -31,7 +31,7 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
-    server: 'asoc-audit-mcp',
+    server: 'agntor-audit-mcp',
     version: '0.1.0',
     timestamp: new Date().toISOString(),
   });
@@ -54,7 +54,7 @@ app.post('/mcp', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
-║         A-SOC MCP Audit Server                            ║
+║         Agntor MCP Audit Server                            ║
 ╠═══════════════════════════════════════════════════════════╣
 ║  Status:    RUNNING                                       ║
 ║  Port:      ${PORT}                                       ║
@@ -67,6 +67,10 @@ app.listen(PORT, () => {
 ║    • issue_audit_ticket                                   ║
 ║    • query_agents                                         ║
 ║    • activate_kill_switch                                 ║
+║    • guard_input                                          ║
+║    • redact_output                                        ║
+║    • guard_tool                                           ║
+║    • get_agent_registration                               ║
 ╚═══════════════════════════════════════════════════════════╝
   `);
 });

@@ -1,13 +1,13 @@
-# Contributing to @asoc/mcp-server
+# Contributing to @agntor/mcp
 
-Thank you for contributing to the A-SOC MCP Server!
+Thank you for contributing to the Agntor MCP Server!
 
 ## Development Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/asoc-trust/asoc-core.git
-cd asoc-core/packages/mcp
+git clone https://github.com/agntor-protocol/mcp.git
+cd mcp
 
 # Install dependencies
 npm install
@@ -64,7 +64,7 @@ curl -X POST http://localhost:3100/mcp \
 
 ## Architecture Notes
 
-The MCP server is the **discovery layer** for A-SOC:
+The MCP server is the **discovery layer** for Agntor:
 - `server.ts`: Tool definitions and handlers
 - `schemas.ts`: Zod validation schemas
 - `index.ts`: HTTP/stdio transport setup
@@ -73,4 +73,4 @@ Replace `seedDemoAgents()` with your database when productionizing.
 
 ## Questions?
 
-Open an issue or reach out at https://github.com/asoc-trust/asoc-core/discussions
+Open an issue or reach out at https://github.com/agntor-protocol/mcp/issues
