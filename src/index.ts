@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { TicketIssuer, guard, redact, guardTool } from '@agntor/sdk';
+import { TicketIssuer, guard, redact, guardTool, Agntor } from '@agntor/sdk';
 import { db, agents, certifications, healthMetrics } from '@agntor/database';
 import { eq, desc, and, gte } from 'drizzle-orm';
 import { AgentCardSchema, AgentPulseSchema, AgentRegistrationSchema } from './schemas.js';
@@ -397,71 +397,44 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
       },
     },
     async ({ agentId, includeHealth }) => {
-      const agent = await getAgentRecord(agentId);
+      const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
+      const agntor = new Agntor(apiKey, process.env.AGNTOR_API_URL || 'http://localhost:3000');
 
-      if (!agent) {
-        const output = {
-          agentId,
-          score: 0,
-          level: 'None',
-          factors: {
-            certification: 0,
-            behavioral_health: 0,
-            transaction_history: 0,
-            domain_verification: 0,
-          },
-          recommendation: 'reject' as const,
+      try {
+        // Use SDK to fetch score and agent details
+        const score = await agntor.getScore(agentId);
+        const agentData = await agntor.getAgent(agentId);
+        
+        // Map SDK/API response to tool output
+        const trustScore: TrustScore = {
+            agentId,
+            score: score || 0,
+            level: agentData.auditLevel || 'None',
+            factors: {
+                certification: agentData.trust?.factors?.certification || 0,
+                behavioral_health: agentData.trust?.factors?.behavioral_health || 0,
+                transaction_history: agentData.trust?.factors?.transaction_history || 0,
+                domain_verification: agentData.trust?.factors?.domain_verification || 0
+            },
+            recommendation: score >= 80 ? 'approve' : score >= 60 ? 'review' : 'reject'
         };
+
+        const output = {
+            ...trustScore,
+            details: includeHealth ? agentData.health : undefined
+        };
+
         return {
-          content: [{ type: 'text', text: JSON.stringify(output) }],
-          structuredContent: output,
+            content: [{ type: 'text', text: JSON.stringify(output) }],
+            structuredContent: output,
+        };
+      } catch (error) {
+        // Fallback or error handling
+         return {
+            content: [{ type: 'text', text: `Error fetching trust score: ${error}` }],
+            isError: true
         };
       }
-
-      // Calculate trust factors
-      const certificationScore = agent.killSwitchActive
-        ? 0
-        : (agent.certification.mva_level / 5) * 100;
-
-      const healthScore =
-        agent.health.uptime_percentage * 0.4 +
-        (1 - agent.health.error_rate) * 100 * 0.3 +
-        Math.max(0, 100 - agent.health.avg_latency_ms / 5) * 0.3;
-
-      const txScore = Math.min(
-        100,
-        (agent.health.total_transactions / 10000) * 100
-      );
-
-      const domainScore = agent.metadata.verified_domain ? 100 : 50;
-
-      const trustScore: TrustScore = {
-        agentId: agent.agentId,
-        score: agent.trustScore,
-        level: agent.auditLevel,
-        factors: {
-          certification: Math.round(certificationScore),
-          behavioral_health: Math.round(healthScore),
-          transaction_history: Math.round(txScore),
-          domain_verification: domainScore,
-        },
-        recommendation:
-          agent.trustScore >= 80
-            ? 'approve'
-            : agent.trustScore >= 60
-            ? 'review'
-            : 'reject',
-      };
-
-      const output = {
-        ...trustScore,
-        details: includeHealth ? agent.health : undefined,
-      };
-
-      return {
-        content: [{ type: 'text', text: JSON.stringify(output) }],
-        structuredContent: output,
-      };
     }
   );
 
@@ -616,6 +589,81 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
         content: [{ type: 'text', text: JSON.stringify(output) }],
         structuredContent: output,
       };
+    }
+  );
+
+  /**
+   * Tool: create_escrow
+   * 
+   * Create an escrow task via Agntor API (uses SDK)
+   */
+  server.registerTool(
+    'create_escrow',
+    {
+      title: 'Create Escrow',
+      description: 'Create a new escrow task for payment',
+      inputSchema: z.object({
+        agentId: z.string(),
+        target: z.string(),
+        amount: z.number(),
+        task: z.string()
+      }),
+      outputSchema: z.any()
+    },
+    async ({ agentId, target, amount, task }) => {
+       const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
+       // Default to localhost for internal MCP, but allow override
+       const agntor = new Agntor(apiKey, process.env.AGNTOR_API_URL || 'http://localhost:3000');
+       
+       try {
+           // SDK escrow method now supports optional agentId in params (it infers from API key usually)
+           // But here we might be acting on behalf of an explicit agentId passed to the tool
+           const result = await agntor.escrow({ agentId, target, amount, task });
+           return {
+             content: [{ type: 'text', text: JSON.stringify(result) }],
+             structuredContent: result
+           };
+       } catch (e: any) {
+           return {
+               content: [{ type: 'text', text: `Error: ${e.message}` }],
+               isError: true
+           };
+       }
+    }
+  );
+
+  /**
+   * Tool: verify_agent_identity
+   * 
+   * Verify agent identity using Agntor SDK
+   */
+  server.registerTool(
+    'verify_agent_identity',
+    {
+      title: 'Verify Agent Identity',
+      description: 'Trigger self-verification via SDK',
+      inputSchema: z.object({
+        agentId: z.string().optional()
+      }),
+      outputSchema: z.any()
+    },
+    async ({ agentId }) => {
+       const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
+       const agntor = new Agntor(apiKey, process.env.AGNTOR_API_URL || 'http://localhost:3000');
+       
+       try {
+           // Calls agntor.verify() which now supports optional agentId
+           const result = await agntor.verify(agentId);
+           return {
+             content: [{ type: 'text', text: JSON.stringify(result) }],
+             structuredContent: result
+           };
+       } catch (e: any) {
+           return {
+               content: [{ type: 'text', text: `Error: ${e.message}` }],
+               isError: true
+           };
+       }
     }
   );
 
