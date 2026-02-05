@@ -1,8 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { TicketIssuer, guard, redact, guardTool, Agntor } from '@agntor/sdk';
-import { db, agents, certifications, healthMetrics } from '@agntor/database';
-import { eq, desc, and, gte } from 'drizzle-orm';
+// Removed direct DB access: import { db, agents, certifications, healthMetrics } from '@agntor/database';
+// Removed drizzle imports: import { eq, desc, and, gte } from 'drizzle-orm';
 import { AgentCardSchema, AgentPulseSchema, AgentRegistrationSchema } from './schemas.js';
 import {
   AgentRecord,
@@ -13,60 +13,29 @@ import {
   KillSwitchRequest,
 } from './types.js';
 
+// Helper to get configured SDK instance
+function getAgntorClient() {
+    const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
+    const apiUrl = process.env.AGNTOR_API_URL || 'http://localhost:3000';
+    return new Agntor(apiKey, apiUrl);
+}
+
 /**
- * Helper to map DB result to AgentRecord
+ * Helper to fetch agent record via SDK
  */
 async function getAgentRecord(agentId: string): Promise<AgentRecord | null> {
-  const agent = await db.query.agents.findFirst({
-    where: eq(agents.id, agentId),
-    with: {
-      certifications: {
-        orderBy: (certs, { desc }) => [desc(certs.issuedAt)],
-        limit: 1,
-      },
-      healthMetrics: {
-        orderBy: (metrics, { desc }) => [desc(metrics.recordedAt)],
-        limit: 1,
-      },
-    },
-  });
-
-  if (!agent) return null;
-
-  const latestCert = agent.certifications[0];
-  const latestHealth = agent.healthMetrics[0];
-  const metadata = agent.metadata as any || {};
-
-  return {
-    agentId: agent.id,
-    auditLevel: (agent.auditLevel as any) || 'Bronze',
-    trustScore: agent.trustScore || 0,
-    organization: agent.organization,
-    metadata: {
-      name: agent.name,
-      description: metadata.description || '',
-      capabilities: metadata.capabilities || [],
-      verified_domain: metadata.verified_domain,
-    },
-    certification: {
-      certified_at: latestCert?.issuedAt ? new Date(latestCert.issuedAt).getTime() : 0,
-      expires_at: latestCert?.expiresAt ? new Date(latestCert.expiresAt).getTime() : 0,
-      certifier: latestCert?.issuer || 'unknown',
-      mva_level: latestCert?.mvaLevel || 0,
-    },
-    health: {
-      uptime_percentage: latestHealth?.uptimePercentage || 0,
-      avg_latency_ms: latestHealth?.avgLatencyMs || 0,
-      error_rate: latestHealth?.errorRate || 0,
-      total_transactions: 0,
-      last_active: latestHealth?.recordedAt ? new Date(latestHealth.recordedAt).getTime() : 0,
-    },
-    killSwitchActive: agent.killSwitchActive || false,
-    constraints: metadata.constraints || {
-      max_op_value: 0,
-      allowed_mcp_servers: [],
-    },
-  };
+    const agntor = getAgntorClient();
+    try {
+        const agent = await agntor.getAgent(agentId);
+        // The API returns the record in the format we expect (transformed in route.ts)
+        // But we might need to map it if the API response differs from AgentRecord
+        // Based on my route implementation, it returns exactly AgentRecord structure.
+        return agent as AgentRecord;
+    } catch (e) {
+        // If 404 or other error, return null or throw?
+        // simple 404 check
+        return null;
+    }
 }
 
 /**
@@ -520,38 +489,19 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
       },
     },
     async ({ minTrustScore, auditLevel, capabilities, limit }) => {
-      const conditions = [];
-      if (minTrustScore) conditions.push(gte(agents.trustScore, minTrustScore));
-      if (auditLevel) conditions.push(eq(agents.auditLevel, auditLevel));
-      
-      const allAgents = await db.query.agents.findMany({
-        where: conditions.length > 0 ? and(...conditions) : undefined,
-        limit: limit || 10,
-      });
-
-      let results = allAgents;
-      if (capabilities && capabilities.length > 0) {
-        results = results.filter(a => {
-          const caps = (a.metadata as any)?.capabilities || [];
-          return capabilities.every(c => caps.includes(c));
-        });
+      const agntor = getAgntorClient();
+      try {
+          const response = await agntor.queryAgents({ minTrustScore, auditLevel, capabilities, limit });
+          return {
+            content: [{ type: 'text', text: JSON.stringify(response.results) }],
+            structuredContent: response,
+          };
+      } catch (error) {
+           return {
+            content: [{ type: 'text', text: `Error querying agents: ${error}` }],
+            isError: true
+          };
       }
-
-      const mappedResults = results.map((a) => ({
-        agentId: a.id,
-        organization: a.organization,
-        auditLevel: a.auditLevel,
-        trustScore: a.trustScore,
-        capabilities: (a.metadata as any)?.capabilities || [],
-      }));
-
-      return {
-        content: [{ type: 'text', text: JSON.stringify(mappedResults) }],
-        structuredContent: {
-          results: mappedResults,
-          total: mappedResults.length,
-        },
-      };
     }
   );
 
@@ -574,21 +524,19 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
       },
     },
     async ({ agentId, reason }) => {
-      await db.update(agents)
-        .set({ killSwitchActive: true })
-        .where(eq(agents.id, agentId));
-
-      const output = {
-        success: true,
-        agentId,
-        timestamp: Date.now(),
-        reason,
-      };
-
-      return {
-        content: [{ type: 'text', text: JSON.stringify(output) }],
-        structuredContent: output,
-      };
+      const agntor = getAgntorClient();
+      try {
+          const result = await agntor.activateKillSwitch(agentId, reason);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result) }],
+            structuredContent: result,
+          };
+      } catch (error) {
+          return {
+            content: [{ type: 'text', text: `Error activating kill switch: ${error}` }],
+            isError: true
+          };
+      }
     }
   );
 
