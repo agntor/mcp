@@ -17,7 +17,12 @@ import {
 function getAgntorClient() {
     const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
     const apiUrl = process.env.AGNTOR_API_URL || 'http://localhost:3000';
-    return new Agntor(apiKey, apiUrl);
+    return new Agntor({
+      apiKey,
+      agentId: process.env.AGNTOR_AGENT_ID || 'agent://mcp-server',
+      chain: process.env.AGNTOR_CHAIN || 'base',
+      baseUrl: apiUrl,
+    });
 }
 
 /**
@@ -366,8 +371,7 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
       },
     },
     async ({ agentId, includeHealth }) => {
-      const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
-      const agntor = new Agntor(apiKey, process.env.AGNTOR_API_URL || 'http://localhost:3000');
+      const agntor = getAgntorClient();
 
       try {
         // Use SDK to fetch score and agent details
@@ -559,14 +563,10 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
       outputSchema: z.any()
     },
     async ({ agentId, target, amount, task }) => {
-       const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
-       // Default to localhost for internal MCP, but allow override
-       const agntor = new Agntor(apiKey, process.env.AGNTOR_API_URL || 'http://localhost:3000');
+       const agntor = getAgntorClient();
        
        try {
-           // SDK escrow method now supports optional agentId in params (it infers from API key usually)
-           // But here we might be acting on behalf of an explicit agentId passed to the tool
-           const result = await agntor.escrow({ agentId, target, amount, task });
+           const result = await agntor.createEscrowLegacy({ agentId, target, amount, task });
            return {
              content: [{ type: 'text', text: JSON.stringify(result) }],
              structuredContent: result
@@ -596,12 +596,10 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
       outputSchema: z.any()
     },
     async ({ agentId }) => {
-       const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
-       const agntor = new Agntor(apiKey, process.env.AGNTOR_API_URL || 'http://localhost:3000');
+       const agntor = getAgntorClient();
        
        try {
-           // Calls agntor.verify() which now supports optional agentId
-           const result = await agntor.verify(agentId);
+           const result = await agntor.verifyLegacy(agentId);
            return {
              content: [{ type: 'text', text: JSON.stringify(result) }],
              structuredContent: result
