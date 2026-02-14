@@ -336,8 +336,8 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
         reason: z.string().optional(),
       },
     },
-    async ({ tool, policy }) => {
-      const result = guardTool(tool, policy ?? {});
+    async ({ tool, args, policy }) => {
+      const result = guardTool(tool, args, policy ?? {});
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
         structuredContent: result,
