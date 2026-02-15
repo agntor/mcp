@@ -649,5 +649,66 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
     }
   );
 
+  /**
+   * Tool: register_agent
+   * 
+   * Register a new agent in the Agntor network
+   */
+  server.registerTool(
+    'register_agent',
+    {
+      title: 'Register Agent',
+      description: 'Register a new AI agent in the Agntor trust network',
+      inputSchema: z.object({
+        name: z.string().describe('Unique agent name/handle'),
+        organization: z.string().optional().describe('Organization or company name'),
+        description: z.string().optional().describe('What this agent does'),
+        capabilities: z.array(z.string()).optional().describe('Agent capabilities (e.g. ["trade", "email", "search"])'),
+        endpoint: z.string().optional().describe('Agent API endpoint URL'),
+        walletAddress: z.string().optional().describe('Blockchain wallet address'),
+      }),
+      outputSchema: z.object({
+        success: z.boolean(),
+        agent: z.object({
+          id: z.string(),
+          name: z.string(),
+          organization: z.string(),
+          auditLevel: z.string(),
+          trustScore: z.number(),
+          status: z.string(),
+        }).optional(),
+        message: z.string().optional(),
+        error: z.string().optional(),
+      }),
+    },
+    async ({ name, organization, description, capabilities, endpoint, walletAddress }) => {
+      const agntor = getAgntorClient();
+
+      try {
+        const result = await agntor.request<any>('/api/v1/identity/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            name,
+            organization,
+            description,
+            capabilities,
+            endpoint,
+            walletAddress,
+          }),
+        });
+
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+          structuredContent: result,
+        };
+      } catch (e: any) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${e.message}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
   return server;
 }
