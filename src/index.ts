@@ -14,7 +14,7 @@ import {
 // Helper to get configured SDK instance
 function getAgntorClient() {
     const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
-    const apiUrl = process.env.AGNTOR_API_URL || 'https://mcp.agntor.com';
+    const apiUrl = process.env.AGNTOR_API_URL || 'https://app.agntor.com';
     return new Agntor({
       apiKey,
       agentId: process.env.AGNTOR_AGENT_ID || 'agent://mcp-server',
