@@ -1,0 +1,48 @@
+name: Deploy MCP Server
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install SDK from GitHub
+        run: npm install agntor/agntor
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npx tsup
+
+      - name: Deploy to server
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Copy built server
+          scp -i ~/.ssh/deploy_key dist/server.js "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/server.js"
+
+          # Copy updated SDK dist (in case SDK changed)
+          scp -i ~/.ssh/deploy_key -r node_modules/@agntor/sdk/dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/node_modules/@agntor/sdk/dist/"
+
+          # Restart the MCP server
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "pm2 restart agntor-mcp"
+
+          echo "Deployed successfully"
