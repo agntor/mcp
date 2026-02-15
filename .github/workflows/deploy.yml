@@ -16,10 +16,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: |
-          # Install SDK from GitHub org repo (contains built dist/)
-          npm install github:agntor/agntor
-          npm install
+        run: npm install
 
       - name: Build
         run: npx tsup
