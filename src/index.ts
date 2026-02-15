@@ -29,14 +29,52 @@ function getAgntorClient() {
 async function getAgentRecord(agentId: string): Promise<AgentRecord | null> {
     const agntor = getAgntorClient();
     try {
-        const agent = await agntor.getAgent(agentId);
-        // The API returns the record in the format we expect (transformed in route.ts)
-        // But we might need to map it if the API response differs from AgentRecord
-        // Based on my route implementation, it returns exactly AgentRecord structure.
-        return agent as AgentRecord;
+        const raw = await agntor.getAgent(agentId) as Record<string, any>;
+        
+        // Map the API response shape to our internal AgentRecord format.
+        // API returns: { id, identity: { handle, address }, profile: { organization, version, metadata },
+        //               trust: { score, level, certified }, status: { active } }
+        const identity = raw.identity ?? {};
+        const profile = raw.profile ?? {};
+        const trust = raw.trust ?? {};
+        const status = raw.status ?? {};
+        const meta = profile.metadata ?? {};
+
+        const record: AgentRecord = {
+            agentId: raw.id ?? agentId,
+            auditLevel: (trust.level ?? 'Bronze') as AgentRecord['auditLevel'],
+            trustScore: trust.score ?? 0,
+            organization: profile.organization ?? 'Unknown',
+            metadata: {
+                name: identity.handle ?? meta.name ?? 'Unknown Agent',
+                description: meta.description ?? '',
+                capabilities: meta.capabilities ?? [],
+                verified_domain: meta.verified_domain,
+            },
+            certification: {
+                certified_at: trust.certified ? Date.now() : 0,
+                expires_at: trust.certified ? Date.now() + 365 * 24 * 60 * 60 * 1000 : 0,
+                certifier: 'agntor.com',
+                mva_level: trust.level === 'Platinum' ? 5 : trust.level === 'Gold' ? 4 : trust.level === 'Silver' ? 3 : 1,
+            },
+            health: {
+                uptime_percentage: meta.uptime_percentage ?? 99.9,
+                avg_latency_ms: meta.avg_latency_ms ?? 150,
+                error_rate: meta.error_rate ?? 0.01,
+                total_transactions: meta.total_transactions ?? 0,
+                last_active: meta.last_active ?? Date.now(),
+            },
+            killSwitchActive: !(status.active ?? true),
+            constraints: {
+                max_op_value: meta.max_op_value ?? 10000,
+                allowed_mcp_servers: meta.allowed_mcp_servers ?? [],
+                max_ops_per_hour: meta.max_ops_per_hour,
+                requires_x402_payment: meta.requires_x402_payment,
+            },
+        };
+
+        return record;
     } catch (e) {
-        // If 404 or other error, return null or throw?
-        // simple 404 check
         return null;
     }
 }
