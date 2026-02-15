@@ -58,9 +58,9 @@ async function getAgentRecord(agentId: string): Promise<AgentRecord | null> {
                 mva_level: trust.level === 'Platinum' ? 5 : trust.level === 'Gold' ? 4 : trust.level === 'Silver' ? 3 : 1,
             },
             health: {
-                uptime_percentage: meta.uptime_percentage ?? 99.9,
-                avg_latency_ms: meta.avg_latency_ms ?? 150,
-                error_rate: meta.error_rate ?? 0.01,
+            uptime_percentage: meta.uptime_percentage ?? 0,
+            avg_latency_ms: meta.avg_latency_ms ?? 0,
+            error_rate: meta.error_rate ?? 0,
                 total_transactions: meta.total_transactions ?? 0,
                 last_active: meta.last_active ?? Date.now(),
             },
@@ -75,6 +75,7 @@ async function getAgentRecord(agentId: string): Promise<AgentRecord | null> {
 
         return record;
     } catch (e) {
+        console.error(`[MCP] getAgentRecord failed for ${agentId}:`, (e as Error).message);
         return null;
     }
 }
@@ -129,7 +130,7 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
           requires_x402_payment: Boolean((agent.constraints as any)?.requires_x402_payment ?? true),
         },
         issuer: 'agntor.com',
-        signature: 'simulated_signature_0x123456789', // Placeholder
+        signature: `agntor:${agent.agentId}:${Date.now()}`, // Real signatures require on-chain integration
       };
 
       return {
@@ -410,9 +411,9 @@ export function createAgntorMcpServer(issuer: TicketIssuer) {
       const agntor = getAgntorClient();
 
       try {
-        // Use SDK to fetch score and agent details
-        const score = await agntor.getScore(agentId);
-        const agentData = await agntor.getAgent(agentId);
+        // Fetch agent data (single call, extract score from response)
+        const agentData = await agntor.getAgent(agentId) as Record<string, any>;
+        const score = agentData?.trust?.score ?? 0;
         
         // Map SDK/API response to tool output
         const trustScore: TrustScore = {
