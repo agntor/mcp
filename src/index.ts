@@ -1,8 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { TicketIssuer, guard, redact, guardTool, Agntor } from '@agntor/sdk';
-// Removed direct DB access: import { db, agents, certifications, healthMetrics } from '@agntor/database';
-// Removed drizzle imports: import { eq, desc, and, gte } from 'drizzle-orm';
 import { AgentCardSchema, AgentPulseSchema, AgentRegistrationSchema } from './schemas.js';
 import {
   AgentRecord,
@@ -16,7 +14,7 @@ import {
 // Helper to get configured SDK instance
 function getAgntorClient() {
     const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
-    const apiUrl = process.env.AGNTOR_API_URL || 'http://localhost:3000';
+    const apiUrl = process.env.AGNTOR_API_URL || 'https://mcp.agntor.com';
     return new Agntor({
       apiKey,
       agentId: process.env.AGNTOR_AGENT_ID || 'agent://mcp-server',

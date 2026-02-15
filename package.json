@@ -4,7 +4,19 @@
   "description": "Official Agntor MCP Server for agent discovery and certification",
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "keywords": [
     "agntor",
     "mcp",
@@ -19,26 +31,30 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/agntor-protocol/mcp.git"
+    "url": "https://github.com/Garinmckayl/agntor.git",
+    "directory": "packages/mcp"
   },
   "bugs": {
-    "url": "https://github.com/agntor-protocol/mcp/issues"
+    "url": "https://github.com/Garinmckayl/agntor/issues"
   },
-  "homepage": "https://github.com/agntor-protocol/mcp#readme",
+  "homepage": "https://github.com/Garinmckayl/agntor/tree/main/packages/mcp#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "bin": {
     "agntor-mcp-server": "./dist/server.js"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/server.ts --format esm --clean",
+    "build": "tsup",
     "dev": "node --trace-uncaught --loader ts-node/esm src/server.ts",
     "test-dev": "node --loader ts-node/esm src/test.ts",
     "start": "node dist/server.js",
     "test": "node --test",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agntor/sdk": "0.1.0",
-    "@agntor/database": "*",
+    "@agntor/sdk": "^0.1.0",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
@@ -49,6 +65,7 @@
     "@types/node": "^22.10.0",
     "esbuild": "^0.19.12",
     "ts-node": "^10.9.2",
+    "tsup": "^8.5.1",
     "typescript": "^5.7.0"
   }
 }
