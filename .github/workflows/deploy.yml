@@ -15,14 +15,19 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install SDK from GitHub
-        run: npm install agntor/agntor
-
       - name: Install dependencies
-        run: npm install
+        run: |
+          # Install SDK from GitHub org repo (contains built dist/)
+          npm install github:agntor/agntor
+          npm install
 
       - name: Build
         run: npx tsup
+
+      - name: Verify build output
+        run: |
+          ls -la dist/
+          head -1 dist/server.js
 
       - name: Deploy to server
         env:
@@ -36,13 +41,16 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # Copy built server
+          # Copy built server.js
           scp -i ~/.ssh/deploy_key dist/server.js "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/server.js"
 
-          # Copy updated SDK dist (in case SDK changed)
-          scp -i ~/.ssh/deploy_key -r node_modules/@agntor/sdk/dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/node_modules/@agntor/sdk/dist/"
+          # Sync SDK dist if it was updated
+          SDK_DIST="node_modules/@agntor/sdk/dist"
+          if [ -d "$SDK_DIST" ]; then
+            scp -i ~/.ssh/deploy_key -r "$SDK_DIST/" "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/node_modules/@agntor/sdk/dist/"
+          fi
 
           # Restart the MCP server
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "pm2 restart agntor-mcp"
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" "pm2 restart agntor-mcp && pm2 logs agntor-mcp --lines 3 --nostream"
 
           echo "Deployed successfully"
