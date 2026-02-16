@@ -13,10 +13,13 @@ import {
 
 // Helper to get configured SDK instance
 function getAgntorClient() {
-    const apiKey = process.env.AGNTOR_API_KEY || 'mock_key';
+    const apiKey = process.env.AGNTOR_API_KEY;
+    if (!apiKey) {
+      console.warn('[MCP] Warning: AGNTOR_API_KEY not set. SDK calls to the backend will fail.');
+    }
     const apiUrl = process.env.AGNTOR_API_URL || 'https://app.agntor.com';
     return new Agntor({
-      apiKey,
+      apiKey: apiKey || 'not-configured',
       agentId: process.env.AGNTOR_AGENT_ID || 'agent://mcp-server',
       chain: process.env.AGNTOR_CHAIN || 'base',
       baseUrl: apiUrl,

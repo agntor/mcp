@@ -1,6 +1,7 @@
 {
   "name": "@agntor/mcp",
   "version": "0.1.0",
+  "mcpName": "io.github.agntor/trust",
   "description": "Official Agntor MCP Server for agent discovery and certification",
   "type": "module",
   "main": "dist/index.js",
@@ -54,7 +55,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agntor/sdk": "^0.1.0",
+    "@agntor/sdk": "^0.2.0",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",

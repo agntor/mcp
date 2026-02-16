@@ -7,7 +7,9 @@ import { createAgntorMcpServer } from './index.js';
 
 const PORT = process.env.PORT || 3100;
 const AGNTOR_SECRET = process.env.AGNTOR_SECRET_KEY || 'dev-secret-key-change-in-production';
-const ADMIN_API_KEY = process.env.AGNTOR_API_KEY;
+// AGNTOR_MCP_AUTH_KEY protects the MCP HTTP endpoint (server auth)
+// AGNTOR_API_KEY authenticates SDK calls to the backend API (separate concern)
+const MCP_AUTH_KEY = process.env.AGNTOR_MCP_AUTH_KEY || process.env.AGNTOR_API_KEY;
 
 // Initialize ticket issuer
 const issuer = new TicketIssuer({
@@ -34,8 +36,8 @@ if (useStdio) {
   app.use(express.json());
 
   function verifyApiKey(req: express.Request, res: express.Response, next: express.NextFunction) {
-    // In dev mode (no ADMIN_API_KEY set), allow all requests
-    if (!ADMIN_API_KEY) return next();
+    // In dev mode (no MCP_AUTH_KEY set), allow all requests
+    if (!MCP_AUTH_KEY) return next();
 
     const header = req.header('x-agntor-api-key') || req.header('authorization');
     const token = header?.startsWith('Bearer ') ? header.slice(7) : header;
@@ -47,7 +49,7 @@ if (useStdio) {
       });
     }
 
-    if (token === ADMIN_API_KEY) {
+    if (token === MCP_AUTH_KEY) {
       return next();
     }
 
@@ -89,7 +91,7 @@ if (useStdio) {
   Port:       ${PORT}
   Endpoint:   http://localhost:${PORT}/mcp
   Health:     http://localhost:${PORT}/health
-  Auth:       ${ADMIN_API_KEY ? 'API key required' : 'Open (dev mode)'}
+  Auth:       ${MCP_AUTH_KEY ? 'API key required' : 'Open (dev mode)'}
 
   Tools: get_agent_card, get_agent_registration, check_agent_pulse,
          is_agent_certified, guard_input, redact_output, guard_tool,
